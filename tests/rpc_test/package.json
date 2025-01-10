@@ -1,0 +1,19 @@
+{
+  "name": "rpc_test",
+  "version": "1.0.0",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@nestjs/testing": "^10.4.15",
+    "supertest": "^7.0.0"
+  }
+}
