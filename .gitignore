@@ -270,3 +270,5 @@ provers/sp1/proofs/
 
 # backup files
 *.bak
+
+node_modules
