@@ -22,17 +22,17 @@ on:
   workflow_dispatch:
 
 jobs:
-  run-tests:
+  rpc_test_run:
     runs-on: ubuntu-latest
 
     steps:
       # Step 1: Checkout the repository
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       # Step 2: Set up Python
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"  # Specify your Python version
 
@@ -44,4 +44,4 @@ jobs:
 
       # Step 4: Run pytest
       - name: Run API RPC Tests
-        run: pytest api_rpc_tests/test_sample.py
+        run: pytest api_rpc_tests/test_sample.py -v --tb=long
