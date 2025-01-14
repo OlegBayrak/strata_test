@@ -43,7 +43,15 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pytest httpx pytest-asyncio  # Add other dependencies here
+          pip install pytest-html
 
       # Step 4: Run pytest
       - name: Run API RPC Tests
-        run: pytest api_rpc_tests/test_sample.py -v --tb=long
+        run: pytest api_rpc_tests/test_sample.py -v --tb=long --html=pytest_report.html
+
+      # Step 5: Upload Report
+      - name: Upload Test Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: pytest-report
+          path: pytest_report.html
