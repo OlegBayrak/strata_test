@@ -58,9 +58,9 @@ async def test_l1_status():
     assert l1_status["bitcoin_rpc_connected"] is True
     assert isinstance(l1_status["cur_height"], int), "Check that height is integer"
     assert isinstance(l1_status["cur_tip_blkid"], str), (
-        "Check that adress is string method"
+        "Check that address is string method"
     )
-    assert len(l1_status["cur_tip_blkid"]) == 64, "Check that adress is 64 digits"
+    assert len(l1_status["cur_tip_blkid"]) == 64, "Check that address is 64 digits"
     assert l1_status["last_published_txid"] is None, (
         "Check that last published tx id is None"
     )
@@ -68,7 +68,7 @@ async def test_l1_status():
         "Check that this value is integer"
     )
     assert isinstance(l1_status["last_update"], int), "Check that this value is integer"
-    assert l1_status["network"] == "signet", "Check that netowrk is correct"
+    assert l1_status["network"] == "signet", "Check that network is correct"
 
 
 @pytest.mark.asyncio
