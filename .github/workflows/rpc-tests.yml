@@ -1,11 +1,25 @@
 name: API RPC Tests
 
 on:
+  # Trigger on a schedule (midnight and midday UTC)
   schedule:
-    # Run at midnight and midday UTC
-    - cron: "0 0 * * *"
-    - cron: "0 12 * * *"
-  workflow_dispatch:  # Allows manual triggering
+    - cron: "0 0 * * *"  # Midnight
+    - cron: "0 12 * * *" # Midday
+
+  # Trigger on pull requests to specific branches
+  pull_request:
+    branches:
+      - main
+      - develop  # Add other branches as needed
+
+  # Trigger on pushes to specific branches
+  push:
+    branches:
+      - main
+      - develop  # Add other branches as needed
+
+  # Allow manual triggering
+  workflow_dispatch:
 
 jobs:
   run-tests:
