@@ -212,11 +212,9 @@ mod tests {
             SP1ProofReceipt::try_from(proof).expect("Failed to convert to SP1ProofReceipt");
         let proof_data = sp1_proof.inner();
 
-        if std::env::var("GENERATE_PROOF_FILE").is_ok() {
-            let filename = "proof-groth16.bin";
-            let mut file = File::create(filename).expect("Failed to create proof-groth16.bin");
-            file.write_all(&bincode::serialize(&proof_data).expect("bincode serialization fail"))
-                .expect("Failed to write to proof-groth16.bin");
-        }
+        let filename = "proof-groth16.bin";
+        let mut file = File::create(filename).unwrap();
+        file.write_all(&bincode::serialize(&proof_data).expect("bincode serialization failed"))
+            .unwrap();
     }
 }
