@@ -221,7 +221,7 @@ def submit_checkpoint(
         wait_until(
             lambda: manual_gen.btcrpc.proxy.gettransaction(published_txid)["confirmations"] > 0,
             timeout=5,
-            error_with="Published envelope not confirmed",
+            error_with="Published inscription not confirmed",
         )
 
 
@@ -525,14 +525,3 @@ def el_slot_to_block_id(rethrpc, block_num):
 def bytes_to_big_endian(hash):
     """Reverses the byte order of a hexadecimal string to produce big-endian format."""
     return "".join(reversed([hash[i : i + 2] for i in range(0, len(hash), 2)]))
-
-
-def check_sequencer_down(seqrpc):
-    """
-    Returns True if sequencer RPC is down
-    """
-    try:
-        seqrpc.strata_protocolVersion()
-        return False
-    except RuntimeError:
-        return True

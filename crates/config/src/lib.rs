@@ -1,5 +1,5 @@
-pub mod bridge;
-pub mod btcio;
+mod bridge;
 mod config;
 
+pub use bridge::*;
 pub use config::*;

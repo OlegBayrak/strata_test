@@ -61,12 +61,12 @@ impl BatchCheckpoint {
         ProofReceipt::new(proof, public_values)
     }
 
-    pub fn hash(&self) -> Buf32 {
+    pub fn get_sighash(&self) -> Buf32 {
         let mut buf = vec![];
-        let batch_serialized =
+        let checkpoint_sighash =
             borsh::to_vec(&self.batch_info).expect("could not serialize checkpoint info");
 
-        buf.extend(&batch_serialized);
+        buf.extend(&checkpoint_sighash);
         buf.extend(self.proof.as_bytes());
 
         strata_primitives::hash::raw(&buf)
@@ -95,7 +95,7 @@ impl SignedBatchCheckpoint {
     }
 
     pub fn verify_sig(&self, pub_key: &Buf32) -> bool {
-        let msg = self.checkpoint().hash();
+        let msg = self.checkpoint().get_sighash();
         verify_schnorr_sig(&self.signature, &msg, pub_key)
     }
 }

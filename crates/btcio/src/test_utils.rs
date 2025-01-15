@@ -6,19 +6,18 @@ use bitcoin::{
     taproot::ControlBlock,
     Address, Amount, Block, BlockHash, Network, ScriptBuf, SignedAmount, Transaction, Txid, Work,
 };
-use strata_l1tx::envelope::builder::build_envelope_script;
-use strata_primitives::l1::payload::L1Payload;
+use strata_state::tx::InscriptionData;
 
 use crate::{
     rpc::{
-        traits::{BroadcasterRpc, ReaderRpc, SignerRpc, WalletRpc},
+        traits::{Broadcaster, Reader, Signer, Wallet},
         types::{
             GetBlockchainInfo, GetTransaction, ImportDescriptor, ImportDescriptorResult,
             ListTransactions, ListUnspent, SignRawTransactionWithWallet,
         },
         ClientResult,
     },
-    writer::builder::{build_reveal_transaction, EnvelopeError},
+    writer::builder::{build_reveal_transaction, generate_inscription_script, InscriptionError},
 };
 
 /// A test implementation of a Bitcoin client.
@@ -51,7 +50,7 @@ const TEST_BLOCKSTR: &str = "000000207d862a78fcb02ab24ebd154a20b9992af6d2f0c94d3
 pub const SOME_TX: &str = "0100000001a15d57094aa7a21a28cb20b59aab8fc7d1149a3bdbcddba9c622e4f5f6a99ece010000006c493046022100f93bb0e7d8db7bd46e40132d1f8242026e045f03a0efe71bbb8e3f475e970d790221009337cd7f1f929f00cc6ff01f03729b069a7c21b59b1736ddfee5db5946c5da8c0121033b9b137ee87d5a812d6f506efdd37f0affa7ffc310711c06c7f3e097c9447c52ffffffff0100e1f505000000001976a9140389035a9225b3839e2bbf32d826a1e222031fd888ac00000000";
 
 #[async_trait]
-impl ReaderRpc for TestBitcoinClient {
+impl Reader for TestBitcoinClient {
     async fn estimate_smart_fee(&self, _conf_target: u16) -> ClientResult<u64> {
         Ok(3)
     }
@@ -105,7 +104,7 @@ impl ReaderRpc for TestBitcoinClient {
 }
 
 #[async_trait]
-impl BroadcasterRpc for TestBitcoinClient {
+impl Broadcaster for TestBitcoinClient {
     // send_raw_transaction sends a raw transaction to the network
     async fn send_raw_transaction(&self, _tx: &Transaction) -> ClientResult<Txid> {
         Ok(Txid::from_slice(&[1u8; 32]).unwrap())
@@ -113,7 +112,7 @@ impl BroadcasterRpc for TestBitcoinClient {
 }
 
 #[async_trait]
-impl WalletRpc for TestBitcoinClient {
+impl Wallet for TestBitcoinClient {
     async fn get_new_address(&self) -> ClientResult<Address> {
         // taken from https://bitcoin.stackexchange.com/q/91222
         let addr = "bcrt1qs758ursh4q9z627kt3pp5yysm78ddny6txaqgw"
@@ -184,7 +183,7 @@ impl WalletRpc for TestBitcoinClient {
 }
 
 #[async_trait]
-impl SignerRpc for TestBitcoinClient {
+impl Signer for TestBitcoinClient {
     async fn sign_raw_transaction_with_wallet(
         &self,
         tx: &Transaction,
@@ -212,12 +211,12 @@ impl SignerRpc for TestBitcoinClient {
     }
 }
 
-pub fn generate_envelope_script_test(
-    envelope_data: L1Payload,
+pub fn generate_inscription_script_test(
+    inscription_data: InscriptionData,
     rollup_name: &str,
     version: u8,
 ) -> anyhow::Result<ScriptBuf> {
-    build_envelope_script(&envelope_data, rollup_name, version)
+    generate_inscription_script(inscription_data, rollup_name, version)
 }
 
 pub fn build_reveal_transaction_test(
@@ -227,7 +226,7 @@ pub fn build_reveal_transaction_test(
     fee_rate: u64,
     reveal_script: &ScriptBuf,
     control_block: &ControlBlock,
-) -> Result<Transaction, EnvelopeError> {
+) -> Result<Transaction, InscriptionError> {
     build_reveal_transaction(
         input_transaction,
         recipient,
@@ -283,35 +282,5 @@ pub mod corepc_node_helpers {
         let (user, password) = get_auth(&bitcoind);
         let client = BitcoinClient::new(url, user, password).unwrap();
         (bitcoind, client)
-    }
-}
-
-#[cfg(test)]
-pub(crate) mod test_context {
-    use std::sync::Arc;
-
-    use bitcoin::{Address, Network};
-    use strata_config::btcio::WriterConfig;
-    use strata_status::StatusChannel;
-    use strata_test_utils::{l2::gen_params, ArbitraryGenerator};
-
-    use crate::{test_utils::TestBitcoinClient, writer::context::WriterContext};
-
-    pub fn get_writer_context() -> Arc<WriterContext<TestBitcoinClient>> {
-        let client = Arc::new(TestBitcoinClient::new(1));
-        let addr = "bcrt1q6u6qyya3sryhh42lahtnz2m7zuufe7dlt8j0j5"
-            .parse::<Address<_>>()
-            .unwrap()
-            .require_network(Network::Regtest)
-            .unwrap();
-        let cfg = Arc::new(WriterConfig::default());
-        let status_channel = StatusChannel::new(
-            ArbitraryGenerator::new().generate(),
-            ArbitraryGenerator::new().generate(),
-            None,
-        );
-        let params = Arc::new(gen_params());
-        let ctx = WriterContext::new(params, cfg, addr, client, status_channel);
-        Arc::new(ctx)
     }
 }

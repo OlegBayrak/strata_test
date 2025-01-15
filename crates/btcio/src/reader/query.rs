@@ -6,62 +6,56 @@ use std::{
 
 use anyhow::bail;
 use bitcoin::{Block, BlockHash};
-use strata_config::btcio::ReaderConfig;
-use strata_l1tx::{
-    filter::filter_protocol_op_tx_refs,
-    filter_types::TxFilterConfig,
-    messages::{BlockData, L1Event},
-};
-use strata_primitives::params::Params;
 use strata_state::l1::{
     get_btc_params, get_difficulty_adjustment_height, BtcParams, HeaderVerificationState,
     L1BlockId, TimestampStore,
 };
 use strata_status::StatusChannel;
+use strata_tx_parser::{
+    filter::filter_protocol_op_tx_refs,
+    filter_types::TxFilterConfig,
+    messages::{BlockData, L1Event},
+};
 use tokio::sync::mpsc;
 use tracing::*;
 
 use crate::{
-    reader::state::ReaderState,
-    rpc::traits::ReaderRpc,
+    reader::{config::ReaderConfig, state::ReaderState},
+    rpc::traits::Reader,
     status::{apply_status_updates, L1StatusUpdate},
 };
 
 /// Context that encapsulates common items needed for L1 reader.
-struct ReaderContext<R: ReaderRpc> {
+struct ReaderContext<R: Reader> {
     /// Bitcoin reader client
     client: Arc<R>,
     /// L1Event sender
     event_tx: mpsc::Sender<L1Event>,
     /// Config
     config: Arc<ReaderConfig>,
-    /// Params
-    params: Arc<Params>,
     /// Status transmitter
     status_channel: StatusChannel,
 }
 
 /// The main task that initializes the reader state and starts reading from bitcoin.
 pub async fn bitcoin_data_reader_task(
-    client: Arc<impl ReaderRpc>,
+    client: Arc<impl Reader>,
     event_tx: mpsc::Sender<L1Event>,
     target_next_block: u64,
     config: Arc<ReaderConfig>,
-    params: Arc<Params>,
     status_channel: StatusChannel,
 ) -> anyhow::Result<()> {
     let ctx = ReaderContext {
         client,
         event_tx,
         config,
-        params,
         status_channel,
     };
     do_reader_task(ctx, target_next_block).await
 }
 
 /// Inner function that actually does the reading task.
-async fn do_reader_task<R: ReaderRpc>(
+async fn do_reader_task<R: Reader>(
     ctx: ReaderContext<R>,
     target_next_block: u64,
 ) -> anyhow::Result<()> {
@@ -119,7 +113,7 @@ async fn do_reader_task<R: ReaderRpc>(
 }
 
 /// Reverts the reader state to the height where the last checkpoint is finalized.
-async fn handle_new_filter_rule<R: ReaderRpc>(
+async fn handle_new_filter_rule<R: Reader>(
     ctx: &ReaderContext<R>,
     state: &mut ReaderState,
 ) -> anyhow::Result<()> {
@@ -144,7 +138,7 @@ async fn handle_new_filter_rule<R: ReaderRpc>(
 
 /// Checks and updates epoch and filter config changes. Returns the new filter config if changed
 /// else returns None.
-async fn update_epoch_and_filter_config<R: ReaderRpc>(
+async fn update_epoch_and_filter_config<R: Reader>(
     ctx: &ReaderContext<R>,
     state: &mut ReaderState,
 ) -> anyhow::Result<Option<TxFilterConfig>> {
@@ -156,7 +150,7 @@ async fn update_epoch_and_filter_config<R: ReaderRpc>(
     if curr_epoch != new_epoch {
         state.set_epoch(new_epoch);
         // TODO: pass in chainstate to `derive_from`
-        let new_config = TxFilterConfig::derive_from(ctx.params.rollup())?;
+        let new_config = TxFilterConfig::derive_from(ctx.config.params.rollup())?;
         let curr_filter_config = state.filter_config().clone();
 
         if new_config != curr_filter_config {
@@ -168,7 +162,7 @@ async fn update_epoch_and_filter_config<R: ReaderRpc>(
 }
 
 /// Inits the reader state by trying to backfill blocks up to a target height.
-async fn init_reader_state<R: ReaderRpc>(
+async fn init_reader_state<R: Reader>(
     ctx: &ReaderContext<R>,
     target_next_block: u64,
 ) -> anyhow::Result<ReaderState> {
@@ -176,9 +170,9 @@ async fn init_reader_state<R: ReaderRpc>(
     debug!(%target_next_block, "initializing reader state");
     let mut init_queue = VecDeque::new();
 
-    let lookback = ctx.params.rollup().l1_reorg_safe_depth as usize * 2;
+    let lookback = ctx.config.max_reorg_depth as usize * 2;
     let client = ctx.client.as_ref();
-    let hor_height = ctx.params.rollup().horizon_l1_height;
+    let hor_height = ctx.config.params.rollup().horizon_l1_height;
     let pre_hor = hor_height.saturating_sub(1);
     let target = target_next_block as i64;
 
@@ -202,7 +196,7 @@ async fn init_reader_state<R: ReaderRpc>(
         real_cur_height = height;
     }
 
-    let params = ctx.params.clone();
+    let params = ctx.config.params.clone();
     let filter_config = TxFilterConfig::derive_from(params.rollup())?;
     let epoch = ctx.status_channel.epoch().unwrap_or(0);
     let state = ReaderState::new(
@@ -217,7 +211,7 @@ async fn init_reader_state<R: ReaderRpc>(
 
 /// Polls the chain to see if there's new blocks to look at, possibly reorging
 /// if there's a mixup and we have to go back.
-async fn poll_for_new_blocks<R: ReaderRpc>(
+async fn poll_for_new_blocks<R: Reader>(
     ctx: &ReaderContext<R>,
     state: &mut ReaderState,
     status_updates: &mut Vec<L1StatusUpdate>,
@@ -273,7 +267,7 @@ async fn poll_for_new_blocks<R: ReaderRpc>(
 /// Finds the highest block index where we do agree with the node.  If we never
 /// find one then we're really screwed.
 async fn find_pivot_block(
-    client: &impl ReaderRpc,
+    client: &impl Reader,
     state: &ReaderState,
 ) -> anyhow::Result<Option<(u64, BlockHash)>> {
     for (height, l1blkid) in state.iter_blocks_back() {
@@ -293,7 +287,7 @@ async fn find_pivot_block(
 }
 
 /// Fetches a block at given height, extracts relevant transactions and emits an `L1Event`.
-async fn fetch_and_process_block<R: ReaderRpc>(
+async fn fetch_and_process_block<R: Reader>(
     ctx: &ReaderContext<R>,
     height: u64,
     state: &mut ReaderState,
@@ -314,7 +308,7 @@ async fn fetch_and_process_block<R: ReaderRpc>(
 }
 
 /// Processes a bitcoin Block to return corresponding `L1Event` and `BlockHash`.
-async fn process_block<R: ReaderRpc>(
+async fn process_block<R: Reader>(
     ctx: &ReaderContext<R>,
     state: &mut ReaderState,
     status_updates: &mut Vec<L1StatusUpdate>,
@@ -323,7 +317,7 @@ async fn process_block<R: ReaderRpc>(
 ) -> anyhow::Result<(L1Event, BlockHash)> {
     let txs = block.txdata.len();
 
-    let params = ctx.params.clone();
+    let params = ctx.config.params.clone();
     let filtered_txs = filter_protocol_op_tx_refs(&block, state.filter_config());
     let block_data = BlockData::new(height, block, filtered_txs);
     let l1blkid = block_data.block().block_hash();
@@ -361,7 +355,7 @@ async fn process_block<R: ReaderRpc>(
 
 /// Gets the [`HeaderVerificationState`] for the particular block
 pub async fn get_verification_state(
-    client: &impl ReaderRpc,
+    client: &impl Reader,
     height: u64,
     params: &BtcParams,
 ) -> anyhow::Result<HeaderVerificationState> {
@@ -441,13 +435,16 @@ mod test {
         let l1status: L1Status = gen.generate();
         let status_channel = StatusChannel::new(cls, l1status, Some(chs));
         let params = Arc::new(gen_params());
-        let config = Arc::new(ReaderConfig::default());
+        let config = Arc::new(ReaderConfig {
+            max_reorg_depth: 4,
+            client_poll_dur_ms: 3000,
+            params,
+        });
         let client = Arc::new(TestBitcoinClient::new(1));
         ReaderContext {
             event_tx,
             config,
             status_channel,
-            params,
             client,
         }
     }

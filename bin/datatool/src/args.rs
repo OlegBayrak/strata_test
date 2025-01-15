@@ -23,7 +23,6 @@ pub(crate) struct Args {
     pub(crate) subc: Subcommand,
 }
 
-#[allow(clippy::large_enum_variant)]
 #[derive(FromArgs, PartialEq, Debug)]
 #[argh(subcommand)]
 pub(crate) enum Subcommand {
@@ -126,18 +125,6 @@ pub(crate) struct SubcParams {
         short = 'n'
     )]
     pub(crate) name: Option<String>,
-
-    #[argh(
-        option,
-        description = "DA tag, used in envelopes (default 'strata-da')"
-    )]
-    pub(crate) da_tag: Option<String>,
-
-    #[argh(
-        option,
-        description = "checkpoint tag, used in envelopes (default 'strata-ckpt')"
-    )]
-    pub(crate) checkpoint_tag: Option<String>,
 
     #[argh(
         option,

@@ -20,3 +20,4 @@ else
 fi
 
 poetry run python entry.py $@
+
