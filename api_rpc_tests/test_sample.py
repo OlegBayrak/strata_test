@@ -4,6 +4,16 @@ import httpx
 BASE_URL = "https://fnclientbcc5fe8c4454c314eb0a00cd3882.devnet-annapurna.stratabtc.org"
 
 
+# Pytest hook to add a custom command-line option
+def pytest_addoption(parser):
+    parser.addoption(
+        "--base-url",
+        action="store",
+        default=BASE_URL,
+        help="Base URL for the JSON-RPC API",
+    )
+
+
 # Helper function to send JSON-RPC requests
 async def send_json_rpc_request(method: str, params: list = None) -> dict:
     payload = {
@@ -20,7 +30,6 @@ async def send_json_rpc_request(method: str, params: list = None) -> dict:
 
 @pytest.mark.asyncio
 async def test_strata_protocol_version():
-    """Test the strata_protocolVersion method"""
     result = await send_json_rpc_request("strata_protocolVersion")
     assert result["jsonrpc"] == "2.0"
     assert "result" in result
@@ -29,7 +38,6 @@ async def test_strata_protocol_version():
 
 @pytest.mark.asyncio
 async def test_strata_block_time():
-    """Test the strata_blockTime method"""
     result = await send_json_rpc_request("strata_blockTime")
     assert result["jsonrpc"] == "2.0"
     assert "result" in result
@@ -40,7 +48,6 @@ async def test_strata_block_time():
 
 @pytest.mark.asyncio
 async def test_strata_l1_connected():
-    """Test the strata_l1connected method"""
     result = await send_json_rpc_request("strata_l1connected")
     assert result["jsonrpc"] == "2.0"
     assert "result" in result
@@ -50,7 +57,6 @@ async def test_strata_l1_connected():
 
 @pytest.mark.asyncio
 async def test_l1_status():
-    """Test the strata_l1status connected method"""
     result = await send_json_rpc_request("strata_l1status")
     l1_status = result["result"]
     assert result["jsonrpc"] == "2.0"
@@ -82,7 +88,6 @@ async def test_strata_getL1blockHash():
 
 @pytest.mark.asyncio
 async def test_strata_client_status():
-    """Test the strata_clientStatus method"""
     result = await send_json_rpc_request("strata_clientStatus")
     clientStatus = result["result"]
     assert result["jsonrpc"] == "2.0"
@@ -101,7 +106,6 @@ async def test_strata_client_status():
 
 @pytest.mark.asyncio
 async def test_strata_getRecentBlockHeaders():
-    """Test the strata_getRecentBlockHeaders method"""
     result = await send_json_rpc_request("strata_getRecentBlockHeaders", [5])
     records = result["result"][0]
     assert "result" in result
@@ -260,3 +264,160 @@ async def test_strata_submitBridgeMsg():
     result = await send_json_rpc_request(
         "strata_submitBridgeMsg", ["7465737420627269646765206d657373616765"]
     )
+
+
+@pytest.mark.asyncio
+async def test_strata_getBridgeDuties():
+    result = await send_json_rpc_request("strata_getBridgeDuties", [1, 1000])
+    duties = result["result"]["duties"]
+    for duty in duties:
+        payload = duty["payload"]
+
+        assert "type" in duty
+        assert "payload" in duty
+        assert duty["type"] == "SignDeposit" or "FulfillWithdrawal"
+
+        if duty["type"] == "SignDeposit":
+            assert isinstance(payload["deposit_request_outpoint"], str), (
+                "'deposit_request_outpoint' should be a string"
+            )
+            assert len(payload["deposit_request_outpoint"]) == 66, (
+                "'deposit_request_outpoint' should be 66 characters long"
+            )
+            assert isinstance(payload["el_address"], list)
+            assert len(payload["el_address"])
+            assert isinstance(payload["total_amount"], int)
+            assert payload["total_amount"] > 0
+            assert isinstance(payload["take_back_leaf_hash"], str)
+            assert len(payload["take_back_leaf_hash"]) == 64
+            assert payload["original_taproot_addr"]["network"] == "signet"
+            assert isinstance(payload["original_taproot_addr"]["address"], str)
+            assert len(payload["original_taproot_addr"]["address"]) == 62
+        if duty["type"] == "FulfillWithdrawal":
+            assert isinstance(payload["deposit_outpoint"], str)
+            assert len(payload["deposit_outpoint"]) == 66
+            assert isinstance(payload["user_pk"], str)
+            assert len(payload["user_pk"]) == 66
+            assert isinstance(payload["assigned_operator_idx"], int)
+            assert payload["exec_deadline"]
+
+
+@pytest.mark.asyncio
+async def test_strata_getActiveOperatorChainPubkeySet():
+    result = await send_json_rpc_request("strata_getActiveOperatorChainPubkeySet", [])
+    records = result["result"]
+    for index, public_key in records.items():
+        assert isinstance(index, str), f"Key '{index}' should be a string"
+        assert isinstance(public_key, str), (
+            f"Public key '{public_key}' should be a string"
+        )
+        assert len(public_key) == 66, (
+            f"Public key '{public_key}' should be 66 characters long"
+        )
+
+
+@pytest.mark.asyncio
+async def test_strata_getCheckpointInfo():
+    result = await send_json_rpc_request("strata_getCheckpointInfo", [0])
+    record = result["result"]
+
+    assert "result" in result
+    assert "l1_range" in result["result"]
+    assert isinstance(record["idx"], int)
+    assert record["idx"] >= 0
+    assert isinstance(record["l1_range"], list)
+    assert isinstance(record["l2_range"], list)
+    assert isinstance(record["l2_blockid"], str)
+    assert len(record["l2_blockid"]) == 66
+
+
+@pytest.mark.asyncio
+async def test_strata_getL2BlockStatus():
+    result = await send_json_rpc_request("strata_getL2BlockStatus", [1234])
+    data = result["result"]
+
+    assert "result" in result
+    assert isinstance(data["Finalized"], int)
+    assert data["Finalized"] > 0
+
+
+@pytest.mark.asyncio
+async def test_strata_getSyncEvent():
+    result = await send_json_rpc_request("strata_getSyncEvent", [42])
+    data = result["result"]
+    assert "result" in result
+    assert isinstance(data["L1Block"][0], int)
+    assert isinstance(data["L1Block"][1], str)
+    assert len(data["L1Block"][1]) == 66
+
+
+@pytest.mark.asyncio
+async def test_strata_getLastSyncEventIdx():
+    result = await send_json_rpc_request("strata_getLastSyncEventIdx", [])
+
+    assert "result" in result
+    assert isinstance(result["result"], int)
+
+
+@pytest.mark.asyncio
+@pytest.mark.only
+async def test_strata_getClientUpdateOutput():
+    # Call the JSON-RPC method and await the response
+    result = await send_json_rpc_request("strata_getClientUpdateOutput", [12345])
+
+    # Validate the "result" key
+    assert "result" in result, "'result' key is missing in the response"
+    data = result["result"]
+
+    # Validate the "writes" key
+    assert "writes" in data, "'writes' key is missing in the result"
+    writes = data["writes"]
+    assert isinstance(writes, list), "'writes' should be a list"
+    assert len(writes) > 0, "'writes' should not be empty"
+
+    # Process each entry in "writes"
+    for write in writes:
+        if "UpdateVerificationState" in write:
+            update_state = write["UpdateVerificationState"]
+
+            # Validate fields in UpdateVerificationState
+            assert isinstance(update_state["last_verified_block_num"], int), (
+                "'last_verified_block_num' should be an integer"
+            )
+            assert isinstance(update_state["last_verified_block_hash"], str), (
+                "'last_verified_block_hash' should be a string"
+            )
+            assert len(update_state["last_verified_block_hash"]) == 66, (
+                "'last_verified_block_hash' should be 66 characters long"
+            )
+            assert isinstance(update_state["next_block_target"], int), (
+                "'next_block_target' should be an integer"
+            )
+            assert isinstance(update_state["interval_start_timestamp"], int), (
+                "'interval_start_timestamp' should be an integer"
+            )
+            assert isinstance(update_state["total_accumulated_pow"], int), (
+                "'total_accumulated_pow' should be an integer"
+            )
+
+            # Validate last_11_blocks_timestamps
+            timestamps = update_state["last_11_blocks_timestamps"]
+            assert "timestamps" in timestamps, (
+                "'timestamps' key is missing in last_11_blocks_timestamps"
+            )
+            assert isinstance(timestamps["timestamps"], list), (
+                "'timestamps' should be a list"
+            )
+            assert all(isinstance(ts, int) for ts in timestamps["timestamps"]), (
+                "All elements in 'timestamps' should be integers"
+            )
+            assert isinstance(timestamps["index"], int), "'index' should be an integer"
+
+        if "AcceptL1Block" in write:
+            accept_l1_block = write["AcceptL1Block"]
+            assert isinstance(accept_l1_block, str), (
+                "'AcceptL1Block' should be a string"
+            )
+            assert len(accept_l1_block) == 66, (
+                "'AcceptL1Block' should be 66 characters long"
+            )
