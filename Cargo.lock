@@ -3374,6 +3374,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "deadpool"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6541a3916932fe57768d4be0b1ffb5ec7cbf74ca8c903fdfd5c0fe8aa958f0ed"
+dependencies = [
+ "deadpool-runtime",
+ "num_cpus",
+ "tokio",
+]
+
+[[package]]
+name = "deadpool-runtime"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "092966b41edc516079bdf31ec78a2e0588d1d0c08f78b91d8307215928642b2b"
+
+[[package]]
 name = "debug-helper"
 version = "0.3.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12398,6 +12415,7 @@ dependencies = [
  "async-trait",
  "bitcoin",
  "chrono",
+ "deadpool",
  "directories",
  "jsonrpsee",
  "rockbound",
@@ -12427,6 +12445,7 @@ version = "0.1.0"
 dependencies = [
  "bitcoin",
  "borsh",
+ "deadpool",
  "format_serde_error",
  "jsonrpsee",
  "serde",
@@ -12521,6 +12540,7 @@ dependencies = [
  "strata-common",
  "strata-config",
  "strata-db",
+ "strata-l1tx",
  "strata-primitives",
  "strata-rocksdb",
  "strata-rpc-types",
@@ -12529,7 +12549,6 @@ dependencies = [
  "strata-storage",
  "strata-tasks",
  "strata-test-utils",
- "strata-tx-parser",
  "thiserror 1.0.69",
  "threadpool",
  "tokio",
@@ -12619,6 +12638,7 @@ dependencies = [
  "strata-eectl",
  "strata-evmexec",
  "strata-key-derivation",
+ "strata-l1tx",
  "strata-mmr",
  "strata-primitives",
  "strata-rocksdb",
@@ -12631,7 +12651,6 @@ dependencies = [
  "strata-sync",
  "strata-tasks",
  "strata-test-utils",
- "strata-tx-parser",
  "strata-zkvm",
  "thiserror 1.0.69",
  "threadpool",
@@ -12680,6 +12699,7 @@ dependencies = [
  "strata-crypto",
  "strata-db",
  "strata-eectl",
+ "strata-l1tx",
  "strata-primitives",
  "strata-risc0-adapter",
  "strata-rocksdb",
@@ -12690,7 +12710,6 @@ dependencies = [
  "strata-storage",
  "strata-tasks",
  "strata-test-utils",
- "strata-tx-parser",
  "strata-zkvm",
  "thiserror 1.0.69",
  "threadpool",
@@ -12817,6 +12836,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "strata-l1tx"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arbitrary",
+ "bitcoin",
+ "borsh",
+ "hex",
+ "musig2",
+ "rand",
+ "strata-bridge-tx-builder",
+ "strata-btcio",
+ "strata-primitives",
+ "strata-state",
+ "strata-test-utils",
+ "thiserror 1.0.69",
+ "tracing",
+]
+
+[[package]]
 name = "strata-mmr"
 version = "0.1.0"
 dependencies = [
@@ -12851,6 +12890,7 @@ dependencies = [
  "digest 0.10.7",
  "hex",
  "musig2",
+ "num_enum 0.7.3",
  "rand",
  "reth-primitives",
  "secp256k1",
@@ -12874,11 +12914,11 @@ dependencies = [
  "serde",
  "sha2 0.10.8",
  "strata-bridge-tx-builder",
+ "strata-l1tx",
  "strata-native-zkvm-adapter",
  "strata-primitives",
  "strata-state",
  "strata-test-utils",
- "strata-tx-parser",
  "strata-zkvm",
 ]
 
@@ -12963,6 +13003,7 @@ dependencies = [
  "ethnum",
  "rand",
  "serde",
+ "strata-l1tx",
  "strata-primitives",
  "strata-proofimpl-btc-blockspace",
  "strata-state",
@@ -12992,6 +13033,7 @@ dependencies = [
  "strata-btcio",
  "strata-common",
  "strata-db",
+ "strata-l1tx",
  "strata-native-zkvm-adapter",
  "strata-primitives",
  "strata-proofimpl-btc-blockspace",
@@ -13011,7 +13053,6 @@ dependencies = [
  "strata-sp1-guest-builder",
  "strata-state",
  "strata-test-utils",
- "strata-tx-parser",
  "strata-zkvm",
  "thiserror 1.0.69",
  "tokio",
@@ -13389,7 +13430,6 @@ dependencies = [
  "digest 0.10.7",
  "ethnum",
  "hex",
- "num_enum 0.7.3",
  "rand",
  "serde",
  "sha2 0.10.8",
@@ -13483,33 +13523,13 @@ dependencies = [
  "strata-chaintsn",
  "strata-consensus-logic",
  "strata-db",
+ "strata-l1tx",
  "strata-primitives",
  "strata-proofimpl-cl-stf",
  "strata-proofimpl-evm-ee-stf",
  "strata-state",
  "strata-storage",
- "strata-tx-parser",
  "threadpool",
-]
-
-[[package]]
-name = "strata-tx-parser"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "arbitrary",
- "bitcoin",
- "borsh",
- "hex",
- "musig2",
- "rand",
- "strata-bridge-tx-builder",
- "strata-btcio",
- "strata-primitives",
- "strata-state",
- "strata-test-utils",
- "thiserror 1.0.69",
- "tracing",
 ]
 
 [[package]]
