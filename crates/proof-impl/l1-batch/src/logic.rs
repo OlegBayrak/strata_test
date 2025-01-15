@@ -1,6 +1,5 @@
 use bitcoin::{consensus::deserialize, Block};
 use borsh::{BorshDeserialize, BorshSerialize};
-use strata_l1tx::filter::TxFilterConfig;
 use strata_primitives::{buf::Buf32, params::RollupParams};
 use strata_proofimpl_btc_blockspace::scan::process_blockscan;
 use strata_state::{
@@ -30,9 +29,6 @@ pub fn process_l1_batch_proof(zkvm: &impl ZkVmEnv) {
     let mut state: HeaderVerificationState = zkvm.read_borsh();
 
     let rollup_params: RollupParams = zkvm.read_serde();
-    let filter_config =
-        TxFilterConfig::derive_from(&rollup_params).expect("derive tx-filter config");
-
     let num_inputs: u32 = zkvm.read_serde();
     assert!(num_inputs > 0);
 
@@ -45,8 +41,7 @@ pub fn process_l1_batch_proof(zkvm: &impl ZkVmEnv) {
         let inclusion_proof: Option<L1TxProof> = zkvm.read_borsh();
 
         let block: Block = deserialize(&serialized_block).unwrap();
-        let blockscan_result =
-            process_blockscan(&block, &inclusion_proof, &rollup_params, &filter_config);
+        let blockscan_result = process_blockscan(&block, &inclusion_proof, &rollup_params);
         state.check_and_update_continuity(&block.header, &get_btc_params());
         deposits.extend(blockscan_result.deposits);
         prev_checkpoint = prev_checkpoint.or(blockscan_result.prev_checkpoint);

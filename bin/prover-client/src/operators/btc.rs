@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use strata_btcio::rpc::{traits::ReaderRpc, BitcoinClient};
+use strata_btcio::rpc::{traits::Reader, BitcoinClient};
 use strata_primitives::{
     params::RollupParams,
     proof::{ProofContext, ProofKey},
@@ -8,10 +8,11 @@ use strata_primitives::{
 use strata_proofimpl_btc_blockspace::{logic::BlockScanProofInput, prover::BtcBlockspaceProver};
 use strata_rocksdb::prover::db::ProofDb;
 use strata_state::l1::L1BlockId;
+use tokio::sync::Mutex;
 use tracing::error;
 
 use super::ProvingOp;
-use crate::errors::ProvingTaskError;
+use crate::{errors::ProvingTaskError, task_tracker::TaskTracker};
 
 /// A struct that implements the [`ProvingOp`] trait for Bitcoin blockspace proof generation.
 ///
@@ -37,11 +38,15 @@ impl ProvingOp for BtcBlockspaceOperator {
     type Prover = BtcBlockspaceProver;
     type Params = L1BlockId;
 
-    fn construct_proof_ctx(
+    async fn create_task(
         &self,
-        block_id: &Self::Params,
-    ) -> Result<ProofContext, ProvingTaskError> {
-        Ok(ProofContext::BtcBlockspace(*block_id))
+        block_id: Self::Params,
+        task_tracker: Arc<Mutex<TaskTracker>>,
+        db: &ProofDb,
+    ) -> Result<Vec<ProofKey>, ProvingTaskError> {
+        let context = ProofContext::BtcBlockspace(block_id);
+        let mut task_tracker = task_tracker.lock().await;
+        task_tracker.create_tasks(context, vec![], db)
     }
 
     async fn fetch_input(

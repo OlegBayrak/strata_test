@@ -97,14 +97,16 @@ class BridgeTestBase(StrataTester):
         initial_balance = int(self.rethrpc.eth_getBalance(el_address), 16)
         self.debug(f"Strata Balance right before deposit calls: {initial_balance}")
 
-        self.make_drt(ctx, el_address, bridge_pk)
+        self.__make_drt(ctx, el_address, bridge_pk)
 
         # Wait until the deposit is seen on L2
         expected_balance = initial_balance + deposit_amount * SATS_TO_WEI
-        wait_until(
-            lambda: int(self.rethrpc.eth_getBalance(el_address), 16) == expected_balance,
-            error_with="Strata balance after deposit is not as expected",
-        )
+        wait_until(lambda: int(self.rethrpc.eth_getBalance(el_address), 16) == expected_balance)
+
+        # Final assertion
+        final_balance = int(self.rethrpc.eth_getBalance(el_address), 16)
+        self.debug(f"Strata Balance after deposits: {final_balance}")
+        assert final_balance == expected_balance, "Strata balance after deposit is not as expected"
 
     def withdraw(
         self,
@@ -190,7 +192,7 @@ class BridgeTestBase(StrataTester):
         }
         return self.web3.eth.estimate_gas(transaction)
 
-    def make_drt(self, ctx: flexitest.RunContext, el_address, musig_bridge_pk):
+    def __make_drt(self, ctx: flexitest.RunContext, el_address, musig_bridge_pk):
         """
         Deposit Request Transaction
         """

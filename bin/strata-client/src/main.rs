@@ -6,8 +6,8 @@ use rpc_client::sync_client;
 use strata_bridge_relay::relayer::RelayerHandle;
 use strata_btcio::{
     broadcaster::{spawn_broadcaster_task, L1BroadcastHandle},
-    rpc::{traits::ReaderRpc, BitcoinClient},
-    writer::start_envelope_task,
+    rpc::{traits::Reader, BitcoinClient},
+    writer::{config::WriterConfig, start_inscription_task},
 };
 use strata_common::logging;
 use strata_config::{ClientMode, Config, SequencerConfig};
@@ -237,7 +237,7 @@ pub struct CoreContext {
 fn do_startup_checks(
     database: &impl Database,
     engine: &impl ExecEngineCtl,
-    bitcoin_client: &impl ReaderRpc,
+    bitcoin_client: &impl Reader,
     handle: &Handle,
 ) -> anyhow::Result<()> {
     let chain_state_db = database.chain_state_db();
@@ -408,15 +408,17 @@ fn start_sequencer_tasks(
         ))?,
     };
 
-    let btcio_config = Arc::new(config.btcio.clone());
+    // Spawn up writer
+    let writer_config = WriterConfig::new(
+        sequencer_bitcoin_address,
+        params.rollup().rollup_name.clone(),
+    )?;
 
-    // Start envelope tasks
-    let envelope_handle = start_envelope_task(
+    // Start inscription tasks
+    let inscription_handle = start_inscription_task(
         executor,
         bitcoin_client,
-        Arc::new(btcio_config.writer.clone()),
-        params.clone(),
-        sequencer_bitcoin_address,
+        writer_config,
         seq_db,
         status_channel.clone(),
         pool.clone(),
@@ -424,7 +426,7 @@ fn start_sequencer_tasks(
     )?;
 
     let admin_rpc = rpc_server::SequencerServerImpl::new(
-        envelope_handle.clone(),
+        inscription_handle.clone(),
         broadcast_handle,
         params.clone(),
         checkpoint_handle.clone(),
@@ -459,7 +461,7 @@ fn start_sequencer_tasks(
             sync_manager,
             database,
             engine,
-            envelope_handle,
+            inscription_handle,
             pool,
             params,
             checkpoint_handle,

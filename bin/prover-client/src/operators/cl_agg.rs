@@ -22,8 +22,6 @@ pub struct ClAggOperator {
     cl_stf_operator: Arc<ClStfOperator>,
 }
 
-type BlockBatches = Vec<(L2BlockId, L2BlockId)>;
-
 impl ClAggOperator {
     /// Creates a new CL operations instance.
     pub fn new(cl_stf_operator: Arc<ClStfOperator>) -> Self {
@@ -33,12 +31,16 @@ impl ClAggOperator {
 
 impl ProvingOp for ClAggOperator {
     type Prover = ClAggProver;
-    type Params = BlockBatches;
+    type Params = Vec<(L2BlockId, L2BlockId)>;
 
-    fn construct_proof_ctx(
+    async fn create_task(
         &self,
-        batches: &Self::Params,
-    ) -> Result<ProofContext, ProvingTaskError> {
+        batches: Self::Params,
+        task_tracker: Arc<Mutex<TaskTracker>>,
+        db: &ProofDb,
+    ) -> Result<Vec<ProofKey>, ProvingTaskError> {
+        let mut cl_stf_deps = Vec::with_capacity(batches.len());
+
         // Extract first and last block IDs from batches, error if empty
         let (start_blkid, end_blkid) = match (batches.first(), batches.last()) {
             (Some(first), Some(last)) => (first.0, last.1),
@@ -50,7 +52,21 @@ impl ProvingOp for ClAggOperator {
             }
         };
 
-        Ok(ProofContext::ClAgg(start_blkid, end_blkid))
+        let cl_agg_proof_id = ProofContext::ClAgg(start_blkid, end_blkid);
+
+        for (start_blkid, end_blkid) in batches {
+            let proof_id = ProofContext::ClStf(start_blkid, end_blkid);
+            self.cl_stf_operator
+                .create_task((start_blkid, end_blkid), task_tracker.clone(), db)
+                .await?;
+            cl_stf_deps.push(proof_id);
+        }
+
+        db.put_proof_deps(cl_agg_proof_id, cl_stf_deps.clone())
+            .map_err(ProvingTaskError::DatabaseError)?;
+
+        let mut task_tracker = task_tracker.lock().await;
+        task_tracker.create_tasks(cl_agg_proof_id, cl_stf_deps, db)
     }
 
     async fn fetch_input(
@@ -83,23 +99,5 @@ impl ProvingOp for ClAggOperator {
             *task_id.host(),
         ));
         Ok(ClAggInput { batch, cl_stf_vk })
-    }
-
-    async fn create_deps_tasks(
-        &self,
-        batches: BlockBatches,
-        db: &ProofDb,
-        task_tracker: Arc<Mutex<TaskTracker>>,
-    ) -> Result<Vec<ProofKey>, ProvingTaskError> {
-        let mut cl_stf_deps = Vec::with_capacity(batches.len());
-
-        for (start_blkid, end_blkid) in batches {
-            let proof_keys = self
-                .cl_stf_operator
-                .create_task((start_blkid, end_blkid), task_tracker.clone(), db)
-                .await?;
-            cl_stf_deps.extend(proof_keys);
-        }
-        Ok(cl_stf_deps)
     }
 }
