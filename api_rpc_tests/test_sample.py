@@ -360,7 +360,6 @@ async def test_strata_getLastSyncEventIdx():
 
 
 @pytest.mark.asyncio
-@pytest.mark.only
 async def test_strata_getClientUpdateOutput():
     # Call the JSON-RPC method and await the response
     result = await send_json_rpc_request("strata_getClientUpdateOutput", [12345])
